@@ -1,6 +1,7 @@
 import re
 import os
 import logging
+import sys
 import tempfile
 import concurrent.futures
 from threading import Lock
@@ -52,22 +53,22 @@ class UploadForm:
             if initGet.status_code < 200 or initGet.status_code > 300:
                 self.logger.critical("Server responded with following status: %s - %s",
                                      initGet.status_code, initGet.reason)
-                exit(1)
+                sys.exit(1)
         except Exception as e:
                 self.logger.critical("%s: Host unreachable (%s)", getHost(initUrl), e)
-                exit(1)
+                sys.exit(1)
 
         # Detect and get the form's data
-        detectedForms = detectForms(initGet.text)
+        detectedForms = self.detectForms(initGet.text)
         if not detectedForms:
             self.logger.critical("No HTML forms found.")
-            exit()
+            sys.exit()
         if len(detectedForms) > 1:
             self.logger.critical("%s forms found containing file upload inputs, no way to choose which one to test.", len(detectedForms))
-            exit()
+            sys.exit()
         if len(detectedForms[0][1]) > 1:
             self.logger.critical("%s file inputs found inside the same form, no way to choose which one to test.", len(detectedForms[0]))
-            exit()
+            sys.exit()
 
         self.inputName = detectedForms[0][1][0]["name"]
         self.logger.debug("Found the following file upload input: %s", self.inputName)
@@ -255,8 +256,8 @@ class UploadForm:
                     url = codeExecURL.replace("$uploadFormDir$", os.path.dirname(self.uploadUrl)) \
                                      .replace("$filename$", filename_wo_ext)
                 else:
-                    url = f"{self.schema}://{self.host}/{self.uploadsFolder}/{fu[1].text}"
-                filename = fu[1].text
+                    url = f"{self.schema}://{self.host}/{self.uploadsFolder}/{fu[1]}"
+                filename = fu[1]
                 secondUrl = None
                 for byte in getPoisoningBytes():
                     if byte in filename:
@@ -277,7 +278,8 @@ class UploadForm:
                     result["url"] = secondUrl
         return result
 
-    def detectForms(self, html):
+    @staticmethod
+    def detectForms(html):
         """Detect HTML forms.
 
         Returns a list of BeauitifulSoup objects (detected forms).
